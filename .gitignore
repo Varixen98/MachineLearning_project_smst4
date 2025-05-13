@@ -1,0 +1,9 @@
+#Sensitive file
+.env
+
+#Large model file
+svd_modelv2.pkl
+
+#Large dataset file
+ratings.csv
+tags.csv
