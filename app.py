@@ -2,15 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-# from dotenv import load_dotenv
 import os
 import requests
 import re
 from sklearn.metrics.pairwise import cosine_similarity
 
-
-# Load env file
-# load_dotenv()
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
@@ -204,8 +200,6 @@ def fetch_popular_movie():
     return None
 
 
-
-
 # Function to get the recommended movies
 def filter_movies_by_genre(genres, movies_df, movie_mapper):
     filtered_movies = movies_df[movies_df['genres'].apply(lambda gs: all(g in gs for g in genres))]
@@ -300,11 +294,16 @@ if page == 'Home':
     col1, col2 = st.columns(2)
 
     with col1:
+        st.write("---")
+        st.image("https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_2-d537fb228cf3ded904ef09b136fe3fec72548ebc1fea3fbbd1ad9e36364db38b.svg", width=320)
+        st.write("This app is powered by TMDB API")
+
+
         st.write("""
         ### About the App
         This app recommends movies to the user 
-        based on genres they like and movies they like.
-                 
+        based on the user preffered movies and genres.
+                         
         - Movie Genres
         - Selected Movies user likes
                  
@@ -315,6 +314,7 @@ if page == 'Home':
 
 
     with col2:
+        st.write("---")
         st.markdown("### 🔥 Currently Popular Movie")
 
         pop_movie = fetch_popular_movie()
