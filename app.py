@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import os
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
 
 
 # Load env file
-load_dotenv()
+# load_dotenv()
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
@@ -45,12 +45,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Function to load models
-@st.cache_resource
-def load_models():
-    with open("./Saved Models/svd_modelv2.pkl", "rb") as f:
-        svd_model = pickle.load(f)
-        return svd_model
+# # Function to load models
+# @st.cache_resource
+# def load_models():
+#     with open("./Saved Models/svd_modelv2.pkl", "rb") as f:
+#         svd_model = pickle.load(f)
+#         return svd_model
 
 # Function to load data
 @st.cache_data
@@ -59,10 +59,10 @@ def load_movie_data():
     df['genres'] = df['genres'].apply(lambda x: x.split('|'))
     return df
 
-@st.cache_data
-def load_ratings_data():
-    df = pd.read_csv("./Datasets/ml-32m/ratings.csv")
-    return df
+# @st.cache_data
+# def load_ratings_data():
+#     df = pd.read_csv("./Datasets/ml-32m/ratings.csv")
+#     return df
 
 @st.cache_data
 def load_Q_matrix():
@@ -99,7 +99,7 @@ def load_links():
 
 try:
     # Try to load the resource
-    svd_model = load_models()
+    # svd_model = load_models()
 
     # Try to load the data
     movie_data = load_movie_data()
@@ -263,22 +263,22 @@ elif page == 'Movie Explorer':
     st.write("Things to do!")
     st.markdown("### 🔧 TMDB API Connectivity Test")
 
-    def test_tmdb_connection():
-        url = "https://api.themoviedb.org/3/movie/550"  # Fight Club
-        params = {"api_key": TMDB_API_KEY}
-        try:
-            response = requests.get(url, params=params, timeout=5)
-            st.write("Status Code:", response.status_code)
-            if response.status_code == 200:
-                data = response.json()
-                st.success("TMDB API is working!")
-                st.json(data)  # show full JSON
-            else:
-                st.error(f"TMDB returned status code {response.status_code}")
-        except Exception as e:
-            st.error(f"Error connecting to TMDB: {e}")
+    # def test_tmdb_connection():
+    #     url = "https://api.themoviedb.org/3/movie/550"  # Fight Club
+    #     params = {"api_key": TMDB_API_KEY}
+    #     try:
+    #         response = requests.get(url, params=params, timeout=5)
+    #         st.write("Status Code:", response.status_code)
+    #         if response.status_code == 200:
+    #             data = response.json()
+    #             st.success("TMDB API is working!")
+    #             st.json(data)  # show full JSON
+    #         else:
+    #             st.error(f"TMDB returned status code {response.status_code}")
+    #     except Exception as e:
+    #         st.error(f"Error connecting to TMDB: {e}")
 
-    test_tmdb_connection()
+    # test_tmdb_connection()
 
 # Prediction Page
 elif page == 'Movie Recommendation System':
