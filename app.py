@@ -5,6 +5,7 @@ import pickle
 # from dotenv import load_dotenv
 import os
 import requests
+import re
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -18,18 +19,8 @@ if not TMDB_API_KEY:
     st.stop()
 
 
-import requests
 
-url = "https://api.themoviedb.org/3/authentication"
 
-headers = {
-    "accept": "application/json",
-    "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI4ZTJmMjRhZWJmNmFjZTE5MzdhZTQ3MTc5MDE1MWQyMSIsIm5iZiI6MTc0NzA3NDA2OC4xODcsInN1YiI6IjY4MjIzYzE0YmE1ZTk4YmJhZjczOTMyMCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.NcDGuf_9hf2fnsPNrQNnZGE5_ThVWJS8Q9qTSHSBp-E"
-}
-
-response = requests.get(url, headers=headers)
-
-print(response.text)
 
 # TMDB API config
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/movie"
@@ -45,24 +36,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Function to load models
-@st.cache_resource
-def load_models():
-    with open("./Saved Models/svd_modelv2.pkl", "rb") as f:
-        svd_model = pickle.load(f)
-        return svd_model
-
 # Function to load data
 @st.cache_data
 def load_movie_data():
     df = pd.read_csv("./Datasets/ml-32m/movies.csv")
     df['genres'] = df['genres'].apply(lambda x: x.split('|'))
     return df
-
-# @st.cache_data
-# def load_ratings_data():
-#     df = pd.read_csv("./Datasets/ml-32m/ratings.csv")
-#     return df
 
 @st.cache_data
 def load_Q_matrix():
@@ -98,9 +77,6 @@ def load_links():
     return df
 
 try:
-    # Try to load the resource
-    # svd_model = load_models()
-
     # Try to load the data
     movie_data = load_movie_data()
     movie_stats = load_movie_stats()
@@ -116,8 +92,15 @@ except Exception as e:
     resource_loaded = False
 
 
+# Function to edit necessary data
+def extract_year(title):
+    match = re.search(r'\((\d{4})\)', title)
+    return int(match.group(1)) if match else None
+
+
 # Preparing necessary data
-TOP_N_MOVIES = 10
+TOP_N_MOVIES = 12
+movie_data['year'] = movie_data['title'].apply(extract_year)
 all_genres = sorted(set(g for genre_list in movie_data['genres'] for g in genre_list))
 movie_data = movie_data.merge(links[['movieId', 'tmdbId']], on='movieId', how='left')
 movies_with_rating = movie_data.merge(movie_stats, on='movieId')
@@ -141,6 +124,8 @@ def fetch_tmdb_data_by_id(tmdb_id):
     except requests.exceptions.RequestException as e:
         st.warning(f"TMDB fetch error: {e}")
     return None
+
+
 
 # --- Movie Poster Fetcher ---
 @st.cache_data(show_spinner=False)
@@ -174,6 +159,11 @@ def display_movie_selection(movie_df, max_cols=3):
                 st.caption(movie["title"])
                 if st.checkbox(f"{movie['title']}", key=f"movie_{idx}"):
                     selected.append(movie["title"])
+                # Add synopsis expander
+                tmdb_data = fetch_tmdb_data_by_id(movie['tmdbId'])
+                if tmdb_data and tmdb_data.get("overview"):
+                    with st.expander("Synopsis"):
+                        st.write(tmdb_data["overview"])
     return selected
 
 
@@ -197,6 +187,7 @@ def show_selected_movies(movie_titles, all_poster_df, max_cols=4):
 
 
 
+
 @st.cache_data(show_spinner=False)
 def fetch_popular_movie():
     url = "https://api.themoviedb.org/3/movie/popular"
@@ -212,6 +203,87 @@ def fetch_popular_movie():
         st.warning(f"Failed to fetch popular movie: {e}")
     return None
 
+
+
+
+# Function to get the recommended movies
+def filter_movies_by_genre(genres, movies_df, movie_mapper):
+    filtered_movies = movies_df[movies_df['genres'].apply(lambda gs: all(g in gs for g in genres))]
+    return filtered_movies[filtered_movies['movieId'].isin(set(movie_mapper.keys()))]
+
+
+def filter_movies_by_genre_and_year(genres, year_range, movies_df, movie_mapper):
+    filtered = movies_df[
+        (movies_df['genres'].apply(lambda gs: all(g in gs for g in genres))) &
+        (movies_df['year'] >= year_range[0]) &
+        (movies_df['year'] <= year_range[1])
+    ]
+    return filtered[filtered['movieId'].isin(set(movie_mapper.keys()))]
+
+
+def get_top_movies(filtered_df, top_n=20):
+    return filtered_df.sort_values(by='bayesian_average', ascending=False).head(top_n)
+
+
+def get_selected_movies_ids(selected_titles, title_to_id, movie_mapper):
+    return [title_to_id[t] for t in selected_titles if title_to_id.get(t) in movie_mapper]
+
+
+def compute_user_vector(movie_ids, movie_mapper, Q_matrix):
+    user_vecs = [Q_matrix[movie_mapper[mid]] for mid in movie_ids]
+    return np.mean(user_vecs, axis=0).reshape(1, -1)
+
+
+def recommend_similar_movies(user_vec, Q_matrix, movie_inv_mapper, id_to_title, exclude_titles, top_k=6):
+    sims = cosine_similarity(user_vec, Q_matrix).flatten()
+    sorted_idx = sims.argsort()[::-1]
+
+    # st.write("✅ Top 10 Similarities:", sims[sorted_idx[:10]])
+
+    recommendations = []
+    for i in sorted_idx:
+        mid = movie_inv_mapper.get(i)
+        if not mid:
+            st.warning(f"Invalid mapper index: {i}")
+            continue
+        title = id_to_title.get(mid)
+        if not title:
+            st.warning(f"Invalid movieId: {mid}")
+            continue
+        if title not in exclude_titles and title not in recommendations:
+            recommendations.append(title)
+        if len(recommendations) >= top_k:
+            break
+
+    # st.write("🎯 Final Recommendations:", recommendations)
+    return recommendations
+
+
+
+
+def display_recommendations(titles, movies_with_rating, fetch_tmdb_data_by_id, image_base_url):
+    st.markdown("## 🍿 Because you loved those movies, try these:")
+    tmdb_cache = {}
+    # st.write("🎯 Titles to recommend:", titles)
+
+    for title in titles:
+        row = movies_with_rating[movies_with_rating['title'] == title].dropna(subset=['tmdbId'])
+        if row.empty:
+            continue
+
+        tmdb_id = int(row.iloc[0]['tmdbId'])
+
+        if tmdb_id not in tmdb_cache:
+            tmdb_cache[tmdb_id] = fetch_tmdb_data_by_id(tmdb_id)
+
+        tmdb = tmdb_cache[tmdb_id]
+        
+        if tmdb and tmdb.get("poster_path"):
+            st.image(image_base_url + tmdb["poster_path"], width=150)
+        st.subheader(tmdb["title"] if tmdb else title)
+        st.write(tmdb.get("overview", "No description available.") if tmdb else "")
+
+        
 
 
 
@@ -288,70 +360,39 @@ elif page == 'Movie Recommendation System':
     This app recommends the user based on movie genres they like.
     """)
         
-    # Step 1 Genre Selection
+    # Step 1: Genre selection and set year filter
     selected_genres = st.multiselect("What genres do you enjoy?", all_genres, default=['Action', 'Comedy'])
 
-    # Step 2 Favorite movies
+    min_year = int(movie_data['year'].min())
+    max_year = int(movie_data['year'].max())
+
+    selected_year_range = st.slider(
+        "Preferred release year range:",
+        min_value=min_year,
+        max_value=max_year,
+        value=(2000, 2020)  # default range
+    )
+
     if selected_genres:
-        filtered_movies = movies_with_rating[movies_with_rating['genres'].apply(lambda gs: all(g in gs for g in selected_genres))]
-
-        filtered_movies = filtered_movies[filtered_movies['movieId'].isin(set(movie_mapper.keys()))]
-
-
-        top_movies = filtered_movies.sort_values(by='bayesian_average', ascending=False).head(TOP_N_MOVIES)
-
+        filtered_movies = filter_movies_by_genre_and_year(selected_genres, selected_year_range, movies_with_rating, movie_mapper)
+        top_movies = get_top_movies(filtered_movies, TOP_N_MOVIES)
         poster_df = fetch_poster_df(top_movies)
-            
-        st.markdown("### Pick a few movies you love:")
-        selected_movies = display_movie_selection(poster_df)
 
-        # show which movies the user chooses
+        st.markdown("### Pick a few movies you love:")
+        st.info("Please select at least one movie to get recommendations.")
+        selected_movies = display_movie_selection(poster_df, max_cols=3)
+
+        st.write("---")
         if selected_movies:
             show_selected_movies(selected_movies, poster_df)
 
-
-        if selected_movies:
-            selected_ids = [title_to_id[t] for t in selected_movies if title_to_id.get(t) in movie_mapper]
+            st.write("---")
+            selected_ids = get_selected_movies_ids(selected_movies, title_to_id, movie_mapper)
             if not selected_ids:
                 st.warning("None of the selected movies are available in the model.")
             else:
-                user_vecs = [Q_matrix[movie_mapper[mid]] for mid in selected_ids]
-                avg_vec = np.mean(user_vecs, axis=0).reshape(1, -1)
+                user_vec = compute_user_vector(selected_ids, movie_mapper, Q_matrix)
+                recommendations = recommend_similar_movies(user_vec, Q_matrix, movie_inv_mapper, id_to_title, selected_movies)
+                display_recommendations(recommendations, movies_with_rating, fetch_tmdb_data_by_id, TMDB_IMAGE_BASE)
 
-
-                sims = cosine_similarity(avg_vec, Q_matrix).flatten()
-                sorted_idx = sims.argsort()[::-1]
-
-
-                recommendations = []
-                for i in sorted_idx:
-                    mid = movie_inv_mapper[i]
-                    title = id_to_title[mid]
-                    if title not in selected_movies and title not in recommendations:
-                        recommendations.append(title)
-                    if len(recommendations) >= 6:
-                        break
-
-                st.markdown("## 🍿 Because you loved those movies, try these:")
-
-                # Create a local dict to store already-fetched TMDB data
-                tmdb_cache = {}
-
-                for rec_title in recommendations:
-                    row = movies_with_rating[movies_with_rating['title'] == rec_title].dropna(subset=["tmdbId"])
-                    if row.empty:
-                        continue
-
-                    tmdb_id = int(row.iloc[0]['tmdbId'])
-
-                    # Check if we've already fetched this movie
-                    if tmdb_id not in tmdb_cache:
-                        tmdb_cache[tmdb_id] = fetch_tmdb_data_by_id(tmdb_id)
-
-                    tmdb = tmdb_cache[tmdb_id]
-
-                    if tmdb and tmdb.get("poster_path"):
-                        st.image(TMDB_IMAGE_BASE + tmdb["poster_path"], width=150)
-                    st.subheader(tmdb["title"] if tmdb else rec_title)
-                    st.write(tmdb.get("overview", "No description available.") if tmdb else "")
 
