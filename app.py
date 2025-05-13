@@ -46,11 +46,11 @@ st.set_page_config(
 )
 
 # Function to load models
-@st.cache_resource
-def load_models():
-    with open("./Saved Models/svd_modelv2.pkl", "rb") as f:
-        svd_model = pickle.load(f)
-        return svd_model
+# @st.cache_resource
+# def load_models():
+#     with open("./Saved Models/svd_modelv2.pkl", "rb") as f:
+#         svd_model = pickle.load(f)
+#         return svd_model
 
 # Function to load data
 @st.cache_data
@@ -59,10 +59,10 @@ def load_movie_data():
     df['genres'] = df['genres'].apply(lambda x: x.split('|'))
     return df
 
-@st.cache_data
-def load_ratings_data():
-    df = pd.read_csv("./Datasets/ml-32m/ratings.csv")
-    return df
+# @st.cache_data
+# def load_ratings_data():
+#     df = pd.read_csv("./Datasets/ml-32m/ratings.csv")
+#     return df
 
 @st.cache_data
 def load_Q_matrix():
@@ -99,7 +99,7 @@ def load_links():
 
 try:
     # Try to load the resource
-    svd_model = load_models()
+    # svd_model = load_models()
 
     # Try to load the data
     movie_data = load_movie_data()
