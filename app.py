@@ -2,14 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import os
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
 
 
 # Load env file
-load_dotenv()
+# load_dotenv()
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
