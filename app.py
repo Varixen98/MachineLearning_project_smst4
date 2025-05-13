@@ -269,10 +269,10 @@ elif page == 'Movie Explorer':
         try:
             response = requests.get(url, params=params, timeout=5)
             st.write("Status Code:", response.status_code)
-            if response.status_code == 200:
-                data = response.json()
-                st.success("TMDB API is working!")
-                st.json(data)  # show full JSON
+            # if response.status_code == 200:
+            #     data = response.json()
+            #     st.success("TMDB API is working!")
+            #     st.json(data)  # show full JSON
             else:
                 st.error(f"TMDB returned status code {response.status_code}")
         except Exception as e:
