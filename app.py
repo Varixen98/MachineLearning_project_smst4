@@ -278,7 +278,7 @@ elif page == 'Movie Explorer':
         except Exception as e:
             st.error(f"Error connecting to TMDB: {e}")
 
-    test_tmdb_connection()
+    # test_tmdb_connection()
 
 # Prediction Page
 elif page == 'Movie Recommendation System':
