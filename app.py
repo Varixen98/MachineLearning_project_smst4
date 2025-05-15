@@ -369,7 +369,8 @@ elif page == 'Movie Recommendation System':
 
     min_year = int(movie_data['year'].min())
     max_year = int(movie_data['year'].max())
-
+    
+    st.write("---")
     selected_year_range = st.slider(
         "🎞️ Filter movies released between:",
         min_value=min_year,
@@ -378,7 +379,9 @@ elif page == 'Movie Recommendation System':
         step=1,
         format="%d"
     )
+
     st.markdown(f"### 🎯 You selected: **{selected_year_range[0]} – {selected_year_range[1]}**")
+    st.write("---")
 
     if selected_genres:
         filtered_movies = filter_movies_by_genre_and_year(selected_genres, selected_year_range, movies_with_rating, movie_mapper)
