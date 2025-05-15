@@ -200,7 +200,7 @@ def fetch_popular_movie():
     return None
 
 
-# Function to get the recommended movies
+# Functions to get the recommended movies
 def filter_movies_by_genre(genres, movies_df, movie_mapper):
     filtered_movies = movies_df[movies_df['genres'].apply(lambda gs: all(g in gs for g in genres))]
     return filtered_movies[filtered_movies['movieId'].isin(set(movie_mapper.keys()))]
@@ -232,8 +232,6 @@ def recommend_similar_movies(user_vec, Q_matrix, movie_inv_mapper, id_to_title, 
     sims = cosine_similarity(user_vec, Q_matrix).flatten()
     sorted_idx = sims.argsort()[::-1]
 
-    # st.write("✅ Top 10 Similarities:", sims[sorted_idx[:10]])
-
     recommendations = []
     for i in sorted_idx:
         mid = movie_inv_mapper.get(i)
@@ -249,7 +247,6 @@ def recommend_similar_movies(user_vec, Q_matrix, movie_inv_mapper, id_to_title, 
         if len(recommendations) >= top_k:
             break
 
-    # st.write("🎯 Final Recommendations:", recommendations)
     return recommendations
 
 
@@ -258,7 +255,6 @@ def recommend_similar_movies(user_vec, Q_matrix, movie_inv_mapper, id_to_title, 
 def display_recommendations(titles, movies_with_rating, fetch_tmdb_data_by_id, image_base_url):
     st.markdown("## 🍿 Because you loved those movies, try these:")
     tmdb_cache = {}
-    # st.write("🎯 Titles to recommend:", titles)
 
     for title in titles:
         row = movies_with_rating[movies_with_rating['title'] == title].dropna(subset=['tmdbId'])
@@ -279,6 +275,31 @@ def display_recommendations(titles, movies_with_rating, fetch_tmdb_data_by_id, i
 
         
 
+# Function to check API connectivity
+def test_tmdb_connection(api_key: str, verbose: bool = False):
+    """Test connectivity to the TMDB API."""
+    url = "https://api.themoviedb.org/3/movie/550"  # Known stable endpoint: Fight Club
+    params = {"api_key": api_key}
+        
+    try:
+        response = requests.get(url, params=params, timeout=5)
+
+        if response.status_code == 200:
+            st.success("✅ TMDB API is reachable and working correctly.")
+            if verbose:
+                st.write("Status Code:", response.status_code)
+        elif response.status_code == 401:
+            st.error("❌ Unauthorized. Check if your TMDB API key is correct.")
+        elif response.status_code == 404:
+            st.error("❌ Endpoint not found. Check the TMDB base URL or movie ID.")
+        else:
+            st.warning(f"⚠️ Unexpected status code: {response.status_code}")
+    except requests.exceptions.Timeout:
+        st.error("⏳ Request timed out. Check your network or TMDB server status.")
+    except requests.exceptions.RequestException as e:
+        st.error(f"❌ Connection error: {e}") 
+
+
 
 
 # Main Title
@@ -286,7 +307,7 @@ st.title("🎬 Movie Recommendation App")
 
 # Sidebar for navigation
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("select Page:", ['Home','Movie Explorer', 'Movie Recommendation System'])
+page = st.sidebar.radio("select Page:", ['Home', 'Movie Recommendation System'])
 
 # Home Page
 if page == 'Home':
@@ -311,6 +332,7 @@ if page == 'Home':
         - Cold Start using Bayesian Average + Genre
         - Uses SVD to create matrix factorization
         """)
+        st.write("---")
 
 
     with col2:
@@ -328,29 +350,11 @@ if page == 'Home':
             st.write(overview)
         else:
             st.info("Unable to fetch popular movie right now.")
+
+        st.write("---")
     
-
-# Search page
-elif page == 'Movie Explorer':
-    st.write("Things to do!")
-    st.markdown("### 🔧 TMDB API Connectivity Test")
-
-    def test_tmdb_connection():
-        url = "https://api.themoviedb.org/3/movie/550"  # Fight Club
-        params = {"api_key": TMDB_API_KEY}
-        try:
-            response = requests.get(url, params=params, timeout=5)
-            st.write("Status Code:", response.status_code)
-            if response.status_code == 200:
-                data = response.json()
-                st.success("TMDB API is working!")
-                st.json(data)  # show full JSON
-            else:
-                st.error(f"TMDB returned status code {response.status_code}")
-        except Exception as e:
-            st.error(f"Error connecting to TMDB: {e}")
-
-    # test_tmdb_connection()
+    st.markdown("### 🔧 TMDB API Connectivity Status")
+    test_tmdb_connection(TMDB_API_KEY, verbose=True)
 
 # Prediction Page
 elif page == 'Movie Recommendation System':
@@ -367,11 +371,14 @@ elif page == 'Movie Recommendation System':
     max_year = int(movie_data['year'].max())
 
     selected_year_range = st.slider(
-        "Preferred release year range:",
+        "🎞️ Filter movies released between:",
         min_value=min_year,
         max_value=max_year,
-        value=(2000, 2020)  # default range
+        value=(2000, 2020),
+        step=1,
+        format="%d"
     )
+    st.markdown(f"### 🎯 You selected: **{selected_year_range[0]} – {selected_year_range[1]}**")
 
     if selected_genres:
         filtered_movies = filter_movies_by_genre_and_year(selected_genres, selected_year_range, movies_with_rating, movie_mapper)
